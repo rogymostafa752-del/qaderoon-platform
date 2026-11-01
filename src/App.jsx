@@ -63,7 +63,15 @@ const translations = {
   }
 };
 
-const categoryOptions = ['All', 'Hospitals', 'Universities', 'Schools and educational institutions', 'Restaurants and cafes', 'Libraries', 'Rehabilitation and physiotherapy'];
+const categoryOptions = [
+  'All',
+  'Hospitals',
+  'Universities',
+  'Schools and educational institutions',
+  'Restaurants and cafes',
+  'Libraries',
+  'Rehabilitation and physiotherapy'
+];
 
 function App() {
   const [lang, setLang] = useState('en');
@@ -94,12 +102,21 @@ function App() {
   const isArabic = lang === 'ar';
 
   useEffect(() => {
-    const saved = localStorage.getItem('qaderoon-preferences');
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (parsed.lang) setLang(parsed.lang);
-      if (parsed.fontScale) setFontScale(parsed.fontScale);
-      if (parsed.highContrast !== undefined) setHighContrast(parsed.highContrast);
+    try {
+      const saved = localStorage.getItem('qaderoon-preferences');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.lang) setLang(parsed.lang);
+        if (parsed.fontScale) setFontScale(parsed.fontScale);
+        if (parsed.highContrast !== undefined) setHighContrast(parsed.highContrast);
+      }
+
+      const emergencySaved = localStorage.getItem('qaderoon-emergency-profile');
+      if (emergencySaved) {
+        setEmergencyProfile(JSON.parse(emergencySaved));
+      }
+    } catch (error) {
+      console.warn('Unable to read Qaderoon saved preferences', error);
     }
   }, []);
 
@@ -137,9 +154,7 @@ function App() {
       return;
     }
 
-    const utterance = new SpeechSynthesisUtterance(
-      document.body.innerText
-    );
+    const utterance = new SpeechSynthesisUtterance(document.body.innerText);
     utterance.lang = lang === 'ar' ? 'ar-SA' : 'en-US';
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(utterance);
@@ -165,13 +180,20 @@ function App() {
     }
   };
 
-  const handleAppointmentSubmit = async (e) => {
-    e.preventDefault();
-
+  const submitAppointment = async (saveDraft = false) => {
     const payload = {
       ...appointmentForm,
-      saveDraft: appointmentForm.saveDraft
+      saveDraft
     };
+
+    if (!payload.fullName || !payload.specialist || !payload.preferredDate) {
+      setAppointmentStatus(
+        lang === 'ar'
+          ? 'يرجى إدخال الاسم والتخصص وتاريخ الموعد.'
+          : 'Please fill in your name, specialist, and preferred date.'
+      );
+      return;
+    }
 
     try {
       const res = await fetch('/api/appointments', {
@@ -181,12 +203,30 @@ function App() {
       });
       const data = await res.json();
       setAppointmentStatus(data.message || '');
-      if (res.ok && payload.saveDraft) {
-        setAppointmentForm((prev) => ({ ...prev, fullName: '', specialist: '', preferredDate: '', message: '' }));
+
+      if (res.ok && saveDraft) {
+        setAppointmentForm({
+          fullName: '',
+          specialist: '',
+          preferredDate: '',
+          message: '',
+          saveDraft: false
+        });
       }
     } catch {
-      setAppointmentStatus(lang === 'ar' ? 'حدث خطأ أثناء إرسال الطلب.' : 'There was a problem submitting your request.');
+      setAppointmentStatus(
+        lang === 'ar' ? 'حدث خطأ أثناء إرسال الطلب.' : 'There was a problem submitting your request.'
+      );
     }
+  };
+
+  const handleAppointmentSubmit = async (e) => {
+    e.preventDefault();
+    await submitAppointment(false);
+  };
+
+  const handleDraftAppointment = () => {
+    submitAppointment(true);
   };
 
   const handleEmergencySave = (e) => {
@@ -258,7 +298,7 @@ function App() {
           </div>
         </section>
 
-        <section className="feature-strip">
+        <section className="feature-strip" aria-label="Qaderoon highlights">
           <div className="feature-card">Healthcare access</div>
           <div className="feature-card">Education</div>
           <div className="feature-card">Community</div>
@@ -376,9 +416,7 @@ function App() {
             </div>
             <div className="button-row">
               <button type="submit" className="primary-btn">{t.submit}</button>
-              <button type="button" className="secondary-btn" onClick={() => setAppointmentForm({ ...appointmentForm, saveDraft: true })}>
-                {t.draft}
-              </button>
+              <button type="button" className="secondary-btn" onClick={handleDraftAppointment}>{t.draft}</button>
             </div>
             {appointmentStatus && <p className="status-message">{appointmentStatus}</p>}
           </form>
