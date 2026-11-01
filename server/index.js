@@ -80,6 +80,9 @@ const impactStats = {
   engagement: 8940
 };
 
+const appointmentRequests = [];
+const emergencyProfiles = [];
+
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', app: 'Qaderoon', version: '1.0.0' });
 });
@@ -92,6 +95,14 @@ app.get('/api/impact', (req, res) => {
   res.json(impactStats);
 });
 
+app.get('/api/appointments', (req, res) => {
+  res.json(appointmentRequests);
+});
+
+app.get('/api/emergency-profiles', (req, res) => {
+  res.json(emergencyProfiles);
+});
+
 app.post('/api/ai', (req, res) => {
   const { question } = req.body || {};
   const apiKeyPresent = Boolean(process.env.OPENAI_API_KEY);
@@ -100,7 +111,7 @@ app.post('/api/ai', (req, res) => {
     return res.json({
       connected: false,
       reply:
-        'Qaderoon AI is not fully connected yet. A secure external AI service is required before live intelligent responses can be enabled. You can still explore the platform and use the available accessible resources.'
+        'Qaderoon AI is not fully connected yet. A secure external AI service is required before live intelligent responses can be enabled. You can still explore the platform and use the available accessibility tools.'
     });
   }
 
@@ -124,16 +135,58 @@ app.post('/api/appointments', (req, res) => {
     });
   }
 
+  const payload = {
+    id: Date.now(),
+    fullName,
+    specialist,
+    preferredDate,
+    message: message || '',
+    saveDraft: Boolean(saveDraft),
+    createdAt: new Date().toISOString()
+  };
+
   if (saveDraft) {
+    appointmentRequests.push(payload);
     return res.json({
       status: 'draft',
-      message: 'Appointment request saved as a draft. It has not been confirmed by the healthcare provider.'
+      message: 'Appointment request saved as a draft. It has not been confirmed by the healthcare provider.',
+      id: payload.id
     });
   }
 
+  appointmentRequests.push(payload);
+
   res.json({
     status: 'submitted',
-    message: 'Appointment request submitted. Please wait for provider confirmation before treating it as confirmed.'
+    message: 'Appointment request submitted. Please wait for provider confirmation before treating it as confirmed.',
+    id: payload.id
+  });
+});
+
+app.post('/api/emergency-profile', (req, res) => {
+  const { name, medicalNotes, contact, shareLocation } = req.body || {};
+
+  if (!name || !contact) {
+    return res.status(400).json({
+      message: 'Please provide a name and a trusted contact.'
+    });
+  }
+
+  const profile = {
+    id: Date.now(),
+    name,
+    medicalNotes: medicalNotes || '',
+    contact,
+    shareLocation: Boolean(shareLocation),
+    createdAt: new Date().toISOString()
+  };
+
+  emergencyProfiles.push(profile);
+
+  res.json({
+    status: 'saved',
+    message: 'Emergency profile saved locally and ready for trusted support use.',
+    profile
   });
 });
 
